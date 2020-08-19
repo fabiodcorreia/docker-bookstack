@@ -1,0 +1,230 @@
+kind: pipeline
+type: docker
+name: build-test
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  event:
+  - push
+
+steps:
+  - name: build test image
+    image: plugins/docker:linux-amd64
+    settings:
+      username:
+        from_secret: DOCKERHUB_USERNAME
+      password:
+        from_secret: DOCKERHUB_PASSWORD
+      repo: fabiodcorreia/bookstack
+      auto_tag: true
+      auto_tag_suffix: test
+      purge: true
+
+---
+kind: pipeline
+type: docker
+name: docker-test
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  status:
+  - success
+
+services:
+  - name: mariadb_bookstack
+    image: fabiodcorreia/mariadb:latest
+    container_name: mariadb_bookstack
+    ports: [ 3306 ]
+    volumes:
+      - name: volume_db
+        path: /var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "321.qwerty"
+      MYSQL_DATABASE: "bookstackdb"
+      MYSQL_USER: "bookstackuser"
+      MYSQL_PASSWORD: "bookstackpass"
+
+volumes:
+  - name: volume_db
+    temp: {}
+  - name: volume_bookstack
+    temp: {}
+
+steps:
+  - name: bookstack_test
+    image: fabiodcorreia/bookstack:test
+    ports: [ 80 ]
+    detach: true
+    volumes:
+      - name: volume_bookstack
+        path: /config
+    pull: always
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      DATABASE_HOST: "mariadb_bookstack"
+      DATABASE_NAME: "bookstackdb"
+      DATABASE_USER: "bookstackuser"
+      DATABASE_PASS: "bookstackpass"
+      HTTP_TRACE: "true"
+
+  - name: test image
+    image: fabiodcorreia/base-python:latest
+    commands:
+      - sleep 60
+      - sh ./test/start.sh
+
+depends_on:
+  - build-test
+
+---
+kind: pipeline
+type: docker
+name: docker-amd64
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  event:
+  - tag
+  status:
+  - success
+
+depends_on:
+  - docker-test
+
+steps:
+  - name: build and publish amd64
+    image: plugins/docker:linux-amd64
+    settings:
+      build_args:
+        - BUILD_DATE=${DRONE_BUILD_FINISHED}
+        - VERSION=${DRONE_TAG}
+      username:
+        from_secret: DOCKERHUB_USERNAME
+      password:
+        from_secret: DOCKERHUB_PASSWORD
+      repo: fabiodcorreia/bookstack
+      auto_tag: true
+      auto_tag_suffix: amd64
+      purge: true
+
+---
+kind: pipeline
+type: docker
+name: docker-arm64
+
+platform:
+  os: linux
+  arch: arm64
+
+trigger:
+  event:
+  - tag
+  status:
+  - success
+
+depends_on:
+  - docker-test
+
+steps:
+  - name: build and publish arm64v8
+    image: plugins/docker:linux-arm64
+    settings:
+      build_args:
+        - BUILD_DATE=${DRONE_BUILD_FINISHED}
+        - VERSION=${DRONE_TAG}
+      username:
+        from_secret: DOCKERHUB_USERNAME
+      password:
+        from_secret: DOCKERHUB_PASSWORD
+      repo: fabiodcorreia/bookstack
+      auto_tag: true
+      auto_tag_suffix: arm64v8
+      purge: true
+
+---
+kind: pipeline
+type: docker
+name: docker-arm32
+
+platform:
+  os: linux
+  arch: arm
+
+trigger:
+  event:
+  - tag
+  status:
+  - success
+
+depends_on:
+  - docker-test
+
+steps:
+  - name: build and publish arm32v7
+    image: plugins/docker:linux-arm
+    settings:
+      build_args:
+        - BUILD_DATE=${DRONE_BUILD_FINISHED}
+        - VERSION=${DRONE_TAG}
+      username:
+        from_secret: DOCKERHUB_USERNAME
+      password:
+        from_secret: DOCKERHUB_PASSWORD
+      repo: fabiodcorreia/bookstack
+      auto_tag: true
+      auto_tag_suffix: arm32v7
+      purge: true
+
+---
+kind: pipeline
+type: docker
+name: docker-manifest
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  event:
+  - tag
+  status:
+  - success
+
+depends_on:
+  - docker-amd64
+  - docker-arm64
+  - docker-arm32
+
+steps:
+  - name: manifest
+    pull: always
+    image: plugins/manifest
+    settings:
+      auto_tag: true
+      ignore_missing: true
+      spec: manifest.tmpl
+      username:
+        from_secret: DOCKERHUB_USERNAME
+      password:
+        from_secret: DOCKERHUB_PASSWORD
+  - name: manifest latest
+    pull: always
+    image: plugins/manifest
+    settings:
+      tag: latest
+      ignore_missing: true
+      spec: manifest.tmpl
+      username:
+       from_secret: DOCKERHUB_USERNAME
+      password:
+        from_secret: DOCKERHUB_PASSWORD
