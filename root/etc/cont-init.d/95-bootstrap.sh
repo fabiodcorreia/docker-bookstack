@@ -8,6 +8,7 @@ echo "stderr" > /var/run/s6/container_environment/LOG_CHANNEL
 
 if [ ! -f "${APP_PATH}/.env" ]; then
 
+#TODO its always running this block. maybe I need to set the .env on /config/wwww and then link it to ${APP_PATH}/.env
   chmod +x /usr/bin/wait-for-it.sh
 
   echo "***** delete base /config/www/index.php *****"
@@ -72,8 +73,6 @@ else
   sed -i "s/APP_DEBUG=.+/APP_DEBUG=${DEBUG:-false}/g" "${APP_PATH}/.env"
 fi
 
-cat .env
-
 # Check database connection before migrations
 wait-for-it.sh "${DATABASE_HOST}:3306" -t 30
 sleep 5 #Wait in case of intermitent up container
@@ -84,8 +83,8 @@ php "${APP_PATH}/artisan" migrate --force
 
 echo "**** set volume links ****"
 
-# create directory structure
-
+#mkdir -p "${APP_PATH}/storage/logs"
+#ln -s /dev/stdout "${APP_PATH}/storage/logs/laravel.log"
 
 # create symlinks
 symlinks=( \
@@ -99,8 +98,6 @@ do
 [[ -e "$i" && ! -L "$i" ]] && rm -rf "$i"
   [[ ! -L "$i" ]] && ln -s /config/www/"$(basename "$i")" "$i"
 done
-
-ln -s /dev/stdout "${APP_PATH}/storage/logs/laravel.log"
 
 echo "**** chown /config and /var/www ****"
 chown -R abc:abc \

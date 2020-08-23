@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  db:
+    image: fabiodcorreia/mariadb:latest
+    container_name: mariadb_bookstack
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+    environment:
+      - DATABASE_ROOT=321.qwerty
+      - DATABASE_NAME=bookstackdb
+      - DATABASE_USER=bookstackuser
+      - DATABASE_PASS=bookstackpass
+    ports:
+      - 3306:3306
+
+  web:
+    image: fabiodcorreia/bookstack:latest
+    #image: bookstack
+    container_name: bookstack
+    environment:
+      - TZ=Europe/Lisbon
+      - PUID=1000
+      - PGID=1000
+      - DATABASE_HOST=mariadb_bookstack
+      - DATABASE_NAME=bookstackdb
+      - DATABASE_USER=bookstackuser
+      - DATABASE_PASS=bookstackpass
+      - DEBUG=true
+      - LOG_CHANNEL=stderr
+    volumes:
+      - bookstack_config:/config
+    ports:
+      - 80:80
+    depends_on:
+      - db
+
+volumes:
+  bookstack_config: {}
+  db_data: {}
