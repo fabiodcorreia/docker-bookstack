@@ -17,7 +17,6 @@ services:
 
   web:
     image: fabiodcorreia/bookstack:latest
-    #image: bookstack
     container_name: bookstack
     environment:
       - TZ=Europe/Lisbon

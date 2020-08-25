@@ -3,13 +3,16 @@
 echo "**** create base directories on /config ****"
 mkdir -p /config/www/{uploads,files,images}
 
-echo "***** set default log channel to stderr *****"
-echo "stderr" > /var/run/s6/container_environment/LOG_CHANNEL
+#echo "***** set default log channel to stderr *****"
+#echo "stderr" > /var/run/s6/container_environment/LOG_CHANNEL
 
-if [ ! -f "${APP_PATH}/.env" ]; then
+echo "**** chown /config and /var/www in background ****"
+chown -R abc:abc /config /var/www/ &&
 
-#TODO its always running this block. maybe I need to set the .env on /config/wwww and then link it to ${APP_PATH}/.env
-  chmod +x /usr/bin/wait-for-it.sh
+if [ ! -f /config/www/key.txt ]; then
+  echo "***** Generating BookStack app key for first run *****"
+  KEY=$(php ${APP_PATH}/artisan key:generate --show)
+  echo $KEY > /config/www/key.txt
 
   echo "***** delete base /config/www/index.php *****"
   rm -fr /config/www/index.php
@@ -17,74 +20,64 @@ if [ ! -f "${APP_PATH}/.env" ]; then
   echo "***** enable php fpm worker log *****"
   echo "catch_workers_output=yes" >> /config/php/www2.conf
 
-	touch "${APP_PATH}/.env"
-
-  echo "APP_ENV=production" >> "${APP_PATH}/.env"
-  echo "ALLOW_ROBOTS=false" >> "${APP_PATH}/.env"
-  echo "APP_AUTO_LANG_PUBLIC=false" >> "${APP_PATH}/.env"
-  echo "CACHE_DRIVER=memcached" >> "${APP_PATH}/.env"
-  echo "SESSION_DRIVER=memcached" >> "${APP_PATH}/.env"
-  echo "MEMCACHED_SERVERS=127.0.0.1:11211:100" >> "${APP_PATH}/.env"
-  echo "APP_DEBUG=${DEBUG:-false}"  >> "${APP_PATH}/.env"
-
-  echo "***** Generating BookStack app key for first run *****"
-
-  key=$(php ${APP_PATH}/artisan key:generate --show)
-  echo "APP_KEY=${key}" >> "${APP_PATH}/.env"
-
-  echo "MAIL_DRIVER=smtp" >> "${APP_PATH}/.env"
-  echo "MAIL_HOST=${EMAIL_HOST}" >> "${APP_PATH}/.env"
-  echo "MAIL_PORT=${EMAIL_PORT}" >> "${APP_PATH}/.env"
-  echo "MAIL_USERNAME=${EMAIL_USER}" >> "${APP_PATH}/.env"
-  echo "MAIL_PASSWORD=${EMAIL_PASS}" >> "${APP_PATH}/.env"
-  echo "MAIL_ENCRYPTION=${EMAIL_SECURE}" >> "${APP_PATH}/.env"
-  echo "MAIL_FROM=${EMAIL_FROM}" >> "${APP_PATH}/.env"
-  echo "MAIL_FROM_NAME=BookStack" >> "${APP_PATH}/.env"
-
-  echo "DB_HOST=${DATABASE_HOST}" >> "${APP_PATH}/.env"
-  echo "DB_DATABASE=${DATABASE_NAME}" >> "${APP_PATH}/.env"
-  echo "DB_USERNAME=${DATABASE_USER}" >> "${APP_PATH}/.env"
-  echo "DB_PASSWORD=${DATABASE_PASS}" >> "${APP_PATH}/.env"
-
-  echo "APP_URL=${DOMAIN_NAME}" >> "${APP_PATH}/.env"
-
-  echo "STORAGE_TYPE=${STORAGE_TYPE:-'local'}" >>  "${APP_PATH}/.env" #local, local_secure, s3
-  echo "STORAGE_S3_KEY=${STORAGE_S3_KEY}" >> "${APP_PATH}/.env"
-  echo "STORAGE_S3_SECRET=${STORAGE_S3_SECRET}" >> "${APP_PATH}/.env"
-  echo "STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET}" >> "${APP_PATH}/.env"
-  echo "STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}" >> "${APP_PATH}/.env"
-  echo "STORAGE_URL=${STORAGE_URL}" >> "${APP_PATH}/.env"
-
   echo "**** Default user 'admin@admin.com' with 'password' ****"
-else
-  sed -i "s/DB_HOST=.+/DB_HOST=${DB_HOST}/g" "${APP_PATH}/.env"
-	sed -i "s/DB_DATABASE=.+/DB_DATABASE=${DB_DATABASE}/g" "${APP_PATH}/.env"
-	sed -i "s/DB_USERNAME=.+/DB_USERNAME=${DB_USER}/g" "${APP_PATH}/.env"
-	sed -i "s/DB_PASSWORD=.+/DB_PASSWORD=${DB_PASS}/g" "${APP_PATH}/.env"
-
-  sed -i "s/MAIL_HOST=.+/MAIL_HOST=${EMAIL_HOST}/g" "${APP_PATH}/.env"
-  sed -i "s/MAIL_PORT=.+/MAIL_PORT=${EMAIL_PORT}/g" "${APP_PATH}/.env"
-  sed -i "s/MAIL_USERNAME=.+/MAIL_USERNAME=${EMAIL_USER}/g" "${APP_PATH}/.env"
-  sed -i "s/MAIL_PASSWORD=.+/MAIL_PASSWORD=${EMAIL_PASS}/g" "${APP_PATH}/.env"
-  sed -i "s/MAIL_ENCRYPTION=.+/MAIL_ENCRYPTION=${EMAIL_SECURE}/g" "${APP_PATH}/.env"
-  sed -i "s/MAIL_FROM=.+/MAIL_FROM=${EMAIL_FROM}/g" "${APP_PATH}/.env"
-
-  sed -i "s/APP_URL=.+/APP_URL=${DOMAIN_NAME}/g" "${APP_PATH}/.env"
-  sed -i "s/APP_DEBUG=.+/APP_DEBUG=${DEBUG:-false}/g" "${APP_PATH}/.env"
 fi
 
+KEY=`cat /config/www/key.txt`
+
+cat <<END > ${APP_PATH}/.env
+APP_ENV=production
+ALLOW_ROBOTS=false
+APP_AUTO_LANG_PUBLIC=false
+AUTH_METHOD=standard
+APP_LANG=en
+CACHE_DRIVER=memcached
+SESSION_DRIVER=memcached
+CACHE_PREFIX=bookstack
+MEMCACHED_SERVERS=127.0.0.1:11211:100
+SESSION_SECURE_COOKIE=false
+
+APP_DEBUG=${DEBUG:-false}
+APP_KEY=${KEY}
+APP_URL=${DOMAIN_NAME}
+
+DB_HOST=${DATABASE_HOST}
+DB_PORT=3306
+DB_DATABASE=${DATABASE_NAME}
+DB_USERNAME=${DATABASE_USER}
+DB_PASSWORD=${DATABASE_PASS}
+
+MAIL_DRIVER=smtp
+MAIL_FROM=${EMAIL_FROM}
+MAIL_FROM_NAME=BookStack
+MAIL_HOST=${EMAIL_HOST}
+MAIL_PORT=${EMAIL_PORT}
+MAIL_USERNAME=${EMAIL_USER}
+MAIL_PASSWORD=${EMAIL_PASS}
+MAIL_ENCRYPTION=${EMAIL_SECURE}
+
+STORAGE_TYPE=${STORAGE_TYPE:-'local'}
+
+STORAGE_S3_KEY=${STORAGE_S3_KEY}
+STORAGE_S3_SECRET=${STORAGE_S3_SECRET}
+STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET}
+STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}
+STORAGE_URL=${STORAGE_URL}
+END
+
+chmod +x /usr/bin/wait-for-it.sh
 # Check database connection before migrations
 wait-for-it.sh "${DATABASE_HOST}:3306" -t 30
 sleep 5 #Wait in case of intermitent up container
 wait-for-it.sh "${DATABASE_HOST}:3306" -t 30
 
+echo "**** apply database migrations ****"
 php "${APP_PATH}/artisan" migrate --force
-
 
 echo "**** set volume links ****"
 
-#mkdir -p "${APP_PATH}/storage/logs"
-#ln -s /dev/stdout "${APP_PATH}/storage/logs/laravel.log"
+mkdir -p "${APP_PATH}/storage/logs"
+ln -s /dev/stdout "${APP_PATH}/storage/logs/laravel.log"
 
 # create symlinks
 symlinks=( \
