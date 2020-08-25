@@ -1,1 +1,1 @@
-mechanize
+mechanize==0.4.5
