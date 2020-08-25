@@ -7,7 +7,7 @@ mkdir -p /config/www/{uploads,files,images}
 #echo "stderr" > /var/run/s6/container_environment/LOG_CHANNEL
 
 echo "**** chown /config and /var/www in background ****"
-chown -R abc:abc /config /var/www/ &&
+chown -R abc:abc /config /var/www &>/dev/null &
 
 if [ ! -f /config/www/key.txt ]; then
   echo "***** Generating BookStack app key for first run *****"
@@ -65,6 +65,7 @@ STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT}
 STORAGE_URL=${STORAGE_URL}
 END
 
+echo "**** check database connection ****"
 chmod +x /usr/bin/wait-for-it.sh
 # Check database connection before migrations
 wait-for-it.sh "${DATABASE_HOST}:3306" -t 30
