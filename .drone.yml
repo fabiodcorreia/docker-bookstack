@@ -77,7 +77,7 @@ steps:
   - name: test image
     image: fabiodcorreia/base-python:latest
     commands:
-      - sleep 60
+      - sleep 90
       - sh ./test/start.sh
 
 depends_on:
